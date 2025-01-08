@@ -1,8 +1,15 @@
 #!/bin/bash
 
+function urlencode() {
+    local data="$1"
+    echo -n "$data" | xxd -plain | sed 's/../%&/g' | tr -d '\n'
+}
+
+
 # 初期値設定
 DURATION=1  # デフォルトの会議時間は1時間
 DESCRIPTION=""  # デフォルトのDESCRIPTIONは空
+URL_GOOGLE_CAL=0 # Google カレンダー追加用URLの生成、長い..
 
 # オプション解析
 while [[ $# -gt 0 ]]; do
@@ -21,6 +28,10 @@ while [[ $# -gt 0 ]]; do
             DESCRIPTION=$(sed ':a;N;$!ba;s/\n/\\n/g' "$DESC_FILE")
             shift 2
             ;;
+        --google-cal)
+            URL_GOOGLE_CAL=1
+            shift
+            ;;
         -*)
             echo "Invalid option: $1"
             exit 1
@@ -33,7 +44,7 @@ done
 
 # 残りの引数の確認
 if [ "$#" -ne 3 ]; then
-    echo "Usage: $0 [-d DURATION_HR] [--desc DESCRIPTION_FILE] <YYYY-MM-DD> <HH:MM> <TITLE>"
+    echo "Usage: $0 [-d DURATION_HR] [--desc DESCRIPTION_FILE] [--google-cal] <YYYY-MM-DD> <HH:MM> <TITLE>"
     exit 1
 fi
 
@@ -80,5 +91,21 @@ END:VEVENT
 END:VCALENDAR
 EOF
 
-echo "ICS file created: $FILENAME"
+echo "ICS file created: $FILENAME" >&2
+
+# Optionally, a URL for adding data to Google calender is made
+function url_for_google_calender(){
+   local text=$(urlencode "$TITLE")
+   # "<br>" tag is available although "\n" don't work.
+   local br_detail=$(echo "$DESCRIPTION" | sed 's,\\n,<br>,g')
+   local details=$(urlencode "$br_detail")
+
+   echo "https://www.google.com/calendar/render?action=TEMPLATE&text=$text&details=$details&dates=${START_DATETIME}/${END_DATETIME}&UID=${EVENT_UID}&location=Online"
+}
+
+if [ $URL_GOOGLE_CAL -eq 1 ]
+then
+  echo "Generate a url for google calender" >&2
+  url_for_google_calender
+fi
 
